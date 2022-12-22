@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.visualizer" path="/org/gnome/shell/extensions/visualizer/">
+    <!-- See also: https://docs.gtk.org/glib/gvariant-format-strings.html -->
+		<key type="(ii)" name="visualizer-location">
+            <default>(400, 100)</default>
+            <summary>Location of visualizer</summary>
+            <description>Location of visualizer</description>
+		</key>
+	</schema>
+</schemalist>

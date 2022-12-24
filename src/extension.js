@@ -1,4 +1,4 @@
-const { GLib} = imports.gi;
+const { GLib } = imports.gi;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Visualizer = ExtensionUtils.getCurrentExtension().imports.visual.Visualizer;
 
@@ -11,7 +11,7 @@ function init() {
 function enable() {
 	visual = new Visualizer()
 	timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1, () => {
-		visual.update();
+		visual._update();
 		return GLib.SOURCE_CONTINUE;
 	});
 }
@@ -21,6 +21,6 @@ function disable() {
 		GLib.Source.remove(timeoutId);
 		tiemoutId = null;
 	}
-	visual.on_destroy();
+	visual.onDestroy();
 	visual = null;
 }

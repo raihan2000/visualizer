@@ -6,6 +6,6 @@
   "settings-schema": "org.gnome.shell.extensions.visualizer",
   "shell-version": [ "43" ],
   "url": "https://github.com/raihan2000/visualizer",
-  "uuid": "visualizer@extension.com", 
+  "uuid": "visualizer@extension.org", 
   "version": 1
 }

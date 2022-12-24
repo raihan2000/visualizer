@@ -1,15 +1,22 @@
-const { Clutter, GObject, GLib, Gio, St, Gdk, Gst } = imports.gi;
+const { Clutter, GObject, GLib, Gio, St, Gdk, Gst, Meta, Shell } = imports.gi;
+const Util = imports.misc.util;
 const DND = imports.ui.dnd;
 const Cairo		 = imports.cairo;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Main = imports.ui.main;
+const PopupMenu = imports.ui.popupMenu;
+const Decoder = new TextDecoder();
 
 var Visualizer = GObject.registerClass(
 class musicVisualizer extends St.BoxLayout {
 		_init() {
 			super._init({
 				reactive: true,
+				track_hover: true,
+				can_focus: true
 			});
+      this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
+      this._menuItems = this.getMenuItem();
 			this._freq = [];
 			this._settings = ExtensionUtils.getSettings();
 			this._settings.connect('changed::visualizer-location', () => this.setPosition());
@@ -22,6 +29,8 @@ class musicVisualizer extends St.BoxLayout {
       this._draggable.connect('drag-begin', this._onDragBegin.bind(this));
       this._draggable.connect('drag-end', this._onDragEnd.bind(this));
 
+			this.connect('notify::hover', () => this._onHover());
+
 			this.actor_init();
 			this.setupGst();
 			this.update();
@@ -31,7 +40,24 @@ class musicVisualizer extends St.BoxLayout {
 
 		setupGst() {
 			Gst.init(null);
-			this._pipeline = Gst.parse_launch("pulsesrc device=alsa_output.pci-0000_00_1b.0.analog-stereo.monitor !spectrum bands="+this._spectBands+" threshold=-80 message-phase=true post-messages=true ! fakesink");
+			this._pipeline = Gst.Pipeline.new("bin");
+
+			this._src = Gst.ElementFactory.make("pulsesrc","src");
+			this._src.set_property("device", this._menuItems[0]);
+			let _spectrum = Gst.ElementFactory.make("spectrum","spectrum");
+			_spectrum.set_property("bands", this._spectBands);
+			_spectrum.set_property("threshold", -80);
+			_spectrum.set_property("post-messages", true);
+			let _sink = Gst.ElementFactory.make("fakesink","sink");
+
+			this._pipeline.add(this._src);
+			this._pipeline.add(_spectrum);
+			this._pipeline.add(_sink);
+			
+			if(!this._src.link(_spectrum) || !_spectrum.link(_sink)){
+				print('can not link elements');
+			}
+
 			let bus = this._pipeline.get_bus();
 			bus.add_signal_watch();
 			bus.connect('message::element', (bus, msg) => this.on_message(bus, msg));
@@ -43,7 +69,6 @@ class musicVisualizer extends St.BoxLayout {
 				let struct = msg.get_structure();
 
 				let [magbool, magnitudes] = struct.get_list("magnitude");
-				let [phasebool, phases] = struct.get_list("phase");
 
 				for(let i=0;i<this._spectBands;++i) {
 					this._freq[i] = magnitudes.get_nth(i)*-1;
@@ -141,7 +166,6 @@ class musicVisualizer extends St.BoxLayout {
         }
     }
 
-
     _onDragBegin() {
         this.isDragging = true;
         this._dragMonitor = {
@@ -188,7 +212,84 @@ class musicVisualizer extends St.BoxLayout {
     getDragActorSource() {
         return this;
     }
-    
+
+		getMenuItem(){
+			try {
+					let [ok, out, err, exit] = GLib.spawn_command_line_sync(`sh -c "pactl list | grep -A2 'Source #' | grep 'Name: ' | cut -d' ' -f2"`);
+					if(out.length > 0){
+						return Decoder.decode(out).trim().split('\n');
+					}
+			} catch (e) {
+					logError(e);
+			}
+		}
+
+    vfunc_button_press_event() {
+        let event = Clutter.get_current_event();
+
+        if (event.get_button() === 1)
+            this._setPopupTimeout();
+        else if (event.get_button() === 3) {
+            this._popupMenu();
+            return Clutter.EVENT_STOP;
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _onHover() {
+        if(!this.hover)
+            this._removeMenuTimeout();
+    }
+
+    _removeMenuTimeout() {
+        if (this._menuTimeoutId > 0) {
+            GLib.source_remove(this._menuTimeoutId);
+            this._menuTimeoutId = 0;
+        }
+    }
+
+    _setPopupTimeout() {
+        this._removeMenuTimeout();
+        this._menuTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+            this._menuTimeoutId = 0;
+            this._popupMenu();
+            return GLib.SOURCE_REMOVE;
+        });
+        GLib.Source.set_name_by_id(this._menuTimeoutId, '[visualizer] this.popupMenu');
+    }
+
+    _popupMenu() {
+        this._removeMenuTimeout();
+
+        if (!this._menu) {
+        		this._subMenuItem = [];
+            this._menu = new PopupMenu.PopupMenu(this, 0.5, St.Side.TOP);
+            let srcDevice = new PopupMenu.PopupSubMenuMenuItem('Change Audio Source');
+            this._menu.addMenuItem(srcDevice);
+						for(let i=0;i<this._menuItems.length;i++){
+							let item = new PopupMenu.PopupMenuItem(this._menuItems[i]);
+							item.connect('activate', () => {
+								for(let k=0;k<this._menuItems.length;k++){
+									this._subMenuItem[k].setOrnament( this._menuItems[i] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);}
+								this._src.set_property("device", this._menuItems[i]);
+							});
+							srcDevice.menu.addMenuItem( item, i);
+							this._subMenuItem.push(item);
+						}
+						for(let k=0;k<this._menuItems.length;k++){
+							this._subMenuItem[k].setOrnament(this._menuItems[0] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
+						}
+            this._menu.addAction("Visualizer Settings", () => {
+                ExtensionUtils.openPrefs();
+            });
+            Main.uiGroup.add_actor(this._menu.actor);
+            this._visualMenuManager.addMenu(this._menu);
+        }
+        this._menu.open();
+        return false;
+    }
+
     on_destroy() {
     	this._pipeline.set_state(Gst.State.NULL);
     	Main.layoutManager._backgroundGroup.remove_child(this);

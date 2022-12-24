@@ -1,5 +1,4 @@
 const { Clutter, GObject, GLib, Gio, St, Gdk, Gst, Meta, Shell } = imports.gi;
-const Util = imports.misc.util;
 const DND = imports.ui.dnd;
 const Cairo		 = imports.cairo;
 const ExtensionUtils = imports.misc.extensionUtils;
@@ -18,9 +17,10 @@ class musicVisualizer extends St.BoxLayout {
       this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
       this._menuItems = this.getMenuItem();
 			this._freq = [];
+			this._actor = new St.DrawingArea();
+			this.add_child(this._actor);
 			this._settings = ExtensionUtils.getSettings();
-			this._settings.connect('changed::visualizer-location', () => this.setPosition());
-
+			this.settingsChanged();
       this._draggable = DND.makeDraggable(this)
       this._draggable._animateDragEnd = (eventTime) => {
           this._draggable._animationInProgress = true;
@@ -31,9 +31,10 @@ class musicVisualizer extends St.BoxLayout {
 
 			this.connect('notify::hover', () => this._onHover());
 
-			this.actor_init();
+			this.actorInit();
+			this._actor.connect('repaint', (area) => this.drawStuff(area));
 			this.setupGst();
-			this.update();
+			this._update();
 			this.setPosition();
 			Main.layoutManager._backgroundGroup.add_child(this);
 		}
@@ -44,65 +45,62 @@ class musicVisualizer extends St.BoxLayout {
 
 			this._src = Gst.ElementFactory.make("pulsesrc","src");
 			this._src.set_property("device", this._menuItems[0]);
-			let _spectrum = Gst.ElementFactory.make("spectrum","spectrum");
-			_spectrum.set_property("bands", this._spectBands);
-			_spectrum.set_property("threshold", -80);
-			_spectrum.set_property("post-messages", true);
+			this._spectrum = Gst.ElementFactory.make("spectrum","spectrum");
+			this._spectrum.set_property("bands", this._spectBands);
+			this._spectrum.set_property("threshold", -80);
+			this._spectrum.set_property("post-messages", true);
 			let _sink = Gst.ElementFactory.make("fakesink","sink");
 
 			this._pipeline.add(this._src);
-			this._pipeline.add(_spectrum);
+			this._pipeline.add(this._spectrum);
 			this._pipeline.add(_sink);
 			
-			if(!this._src.link(_spectrum) || !_spectrum.link(_sink)){
+			if(!this._src.link(this._spectrum) || !this._spectrum.link(_sink)){
 				print('can not link elements');
 			}
 
 			let bus = this._pipeline.get_bus();
 			bus.add_signal_watch();
-			bus.connect('message::element', (bus, msg) => this.on_message(bus, msg));
+			bus.connect('message::element', (bus, msg) => this.onMessage(bus, msg));
 
 			this._pipeline.set_state(Gst.State.PLAYING);
 		}
 
-		on_message(bus, msg) {
+		onMessage(bus, msg) {
 				let struct = msg.get_structure();
 
 				let [magbool, magnitudes] = struct.get_list("magnitude");
-
-				for(let i=0;i<this._spectBands;++i) {
-					this._freq[i] = magnitudes.get_nth(i)*-1;
+				if (!magbool) {
+					print('No magnitudes');
+				} else { 
+					for(let i=0;i<this._spectBands;++i) {
+						this._freq[i] = magnitudes.get_nth(i)*-1; }
 				}
-
-//				if(struct.get_name() == "spectrum") {}
 		}
 
-		actor_init() {
-			this._spectBands = 70;
-			this._spectHeight = 200;
-			this._actor = new St.DrawingArea({
-				width: 720,
-				height: this._spectHeight
-			});
-			this.add_child(this._actor);
-			this._actor.connect('repaint', (area) => this.drawStuff(area));
+		actorInit() {
+			this._spectBands = this._settings.get_int('total-spects-band');
+			this._spectHeight = this._settings.get_int('visualizer-height');
+			this._spectWidth = this._settings.get_int('visualizer-width');
+			this._actor.height = this._spectHeight;
+			this._actor.width = this._spectWidth;
 		}
 		
 		drawStuff(area) {
 			let [width, height] = area.get_surface_size();
 			let cr = area.get_context();
-
-			for(let i=0;i<this._freq.length-6;i++){
+			let lineW = this._settings.get_int('spects-line-width');
+			for(let i=0;i<this._freq.length;i++){
 				cr.setSourceRGBA(1,this._freq[i]/80,1,1);
-				cr.setLineWidth(5);
-				cr.moveTo(2.5+i*width/this._spectBands-6,height);
-				cr.lineTo(2.5+i*width/this._spectBands-6,height * this._freq[i]/80);
+				cr.setLineWidth(lineW);
+				cr.moveTo(lineW/2+i*width/this._spectBands,height);
+				cr.lineTo(lineW/2+i*width/this._spectBands,height * this._freq[i]/80);
 				cr.stroke();
 			}
 			cr.$dispose();
 		}
 		
-		update() {
+		_update() {
 			this._actor.queue_repaint();
 		}
 		
@@ -280,6 +278,7 @@ class musicVisualizer extends St.BoxLayout {
 						for(let k=0;k<this._menuItems.length;k++){
 							this._subMenuItem[k].setOrnament(this._menuItems[0] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
 						}
+						this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             this._menu.addAction("Visualizer Settings", () => {
                 ExtensionUtils.openPrefs();
             });
@@ -290,8 +289,26 @@ class musicVisualizer extends St.BoxLayout {
         return false;
     }
 
-    on_destroy() {
+    onDestroy() {
     	this._pipeline.set_state(Gst.State.NULL);
     	Main.layoutManager._backgroundGroup.remove_child(this);
+    }
+    
+    settingsChanged() {
+			this._settings.connect('changed::visualizer-location', () => this.setPosition());
+			this._settings.connect('changed::total-spects-band', () => {
+				this.actorInit();
+				this._spectrum.set_property("bands", this._spectBands);
+				this._update();
+			});
+			this._settings.connect('changed::visualizer-height', () => {
+				this.actorInit();
+				this._update();
+			});
+			this._settings.connect('changed::visualizer-width', () => {
+				this.actorInit();
+				this._update();
+			});
+			this._settings.connect('changed::spects-line-width', () => this._update());
     }
 });

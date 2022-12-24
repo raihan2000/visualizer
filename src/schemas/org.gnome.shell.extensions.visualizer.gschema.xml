@@ -7,5 +7,27 @@
             <summary>Location of visualizer</summary>
             <description>Location of visualizer</description>
 		</key>
+		
+		<!--Visualizer-->
+		<key name="visualizer-height" type="i">
+      		<default>150</default>
+      		<summary>Vertical Size of DrawingArea</summary>
+    </key>
+		
+		<key name="visualizer-width" type="i">
+      		<default>720</default>
+      		<summary>Horizontal Size of DrawingArea</summary>
+    </key>
+		
+		<key name="spects-line-width" type="i">
+      		<default>5</default>
+      		<summary>All Spect Bands width</summary>
+    </key>
+		
+		<key name="total-spects-band" type="i">
+      		<default>64</default>
+      		<summary>Count Total Spects Bands</summary>
+    </key>
+		
 	</schema>
 </schemalist>

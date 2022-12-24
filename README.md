@@ -14,7 +14,7 @@ More Feature will be added in Future
 
 # Installation
 
-1. Download zip file : https://github.com/raihan2000/visualizer/archive/refs/heads/testing.zip
+1. Download zip file : https://github.com/raihan2000/visualizer/archive/refs/heads/main.zip
 2. Extract to visualizer-main
 4. make install
 

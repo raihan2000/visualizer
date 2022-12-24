@@ -6,14 +6,17 @@ A Sound Visualizer for Gnome Shell based on Gstreamer specially for Wayland
 # Features
 
 - Drag and Drop Supports
+- Change Audio source from Menu (To change right/left click on Visualizer)
+- Change Visualizer size
+- Increase or Decrease Bands
 
-No special features available as it is in Testing phase. It will be available in [ego](https://extensions.gnome.org/) soon
+More Feature will be added in Future
 
 # Installation
 
 1. Download zip file : https://github.com/raihan2000/visualizer/archive/refs/heads/testing.zip
-2. Extract to visualizer-testing
-3. make install
+2. Extract to visualizer-main
+4. make install
 
 or
 

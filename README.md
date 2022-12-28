@@ -1,7 +1,9 @@
-# Visualizer
+# Sound Visualizer
 A Sound Visualizer for Gnome Shell based on Gstreamer specially for Wayland
 
 ![demo](assets/visualization.gif)
+
+For Desktop Widgets I'm Using [Circular Widgets](https://extensions.gnome.org/extension/5530/circular-widgets/) Extension.
 
 # Features
 

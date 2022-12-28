@@ -5,22 +5,21 @@ const Visualizer = ExtensionUtils.getCurrentExtension().imports.visual.Visualize
 var timeoutId;
 var visual;
 
-function init() {
-}
+function init() {}
 
 function enable() {
-	visual = new Visualizer()
-	timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1, () => {
-		visual._update();
-		return GLib.SOURCE_CONTINUE;
-	});
+  visual = new Visualizer()
+  timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1, () => {
+    visual._update();
+    return GLib.SOURCE_CONTINUE;
+  });
 }
 
 function disable() {
-	if(timeoutId){
-		GLib.Source.remove(timeoutId);
-		tiemoutId = null;
-	}
-	visual.onDestroy();
-	visual = null;
+  if (timeoutId) {
+    GLib.Source.remove(timeoutId);
+    tiemoutId = null;
+  }
+  visual.onDestroy();
+  visual = null;
 }

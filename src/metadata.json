@@ -4,7 +4,7 @@
   "description": "A Sound Visualizer Based On Gstreamer", 
   "name": "Sound Visualizer",
   "settings-schema": "org.gnome.shell.extensions.visualizer",
-  "shell-version": [ "43" ],
+  "shell-version": [ "3.36", "3.38", "40", "41", "42", "43" ],
   "url": "https://github.com/raihan2000/visualizer",
   "uuid": "visualizer@sound.org", 
   "version": 1

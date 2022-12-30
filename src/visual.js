@@ -1,10 +1,11 @@
-const { Clutter, GObject, GLib, Gio, St, Gdk, Gst, Meta, Shell } = imports.gi;
+const { Clutter, GObject, GLib, Gio, St, Gdk, Gst, Gvc, Meta, Shell } = imports.gi;
 const DND = imports.ui.dnd;
 const Cairo = imports.cairo;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Main = imports.ui.main;
 const PopupMenu = imports.ui.popupMenu;
-const Decoder = new TextDecoder();
+const Config = imports.misc.config;
+const [major, minor] = Config.PACKAGE_VERSION.split('.').map(s => Number(s));
 
 var Visualizer = GObject.registerClass(
   class musicVisualizer extends St.BoxLayout {
@@ -15,7 +16,6 @@ var Visualizer = GObject.registerClass(
         can_focus: true
       });
       this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
-      this._menuItems = this.getMenuItem();
       this._freq = [];
       this._actor = new St.DrawingArea();
       this.add_child(this._actor);
@@ -41,7 +41,7 @@ var Visualizer = GObject.registerClass(
       Gst.init(null);
       this._pipeline = Gst.Pipeline.new("bin");
       this._src = Gst.ElementFactory.make("pulsesrc", "src");
-      this._src.set_property("device", this._menuItems[0]);
+      this.setDefaultSrc();
       this._spectrum = Gst.ElementFactory.make("spectrum", "spectrum");
       this._spectrum.set_property("bands", this._spectBands);
       this._spectrum.set_property("threshold", -80);
@@ -64,8 +64,7 @@ var Visualizer = GObject.registerClass(
       let [magbool, magnitudes] = struct.get_list("magnitude");
       if (!magbool) {
         print('No magnitudes');
-      }
-      else {
+      } else {
         for (let i = 0; i < this._spectBands; ++i) {
           this._freq[i] = magnitudes.get_nth(i) * -1;
         }
@@ -81,14 +80,23 @@ var Visualizer = GObject.registerClass(
     }
 
     drawStuff(area) {
+      let values = this.getSpectBands();
       let [width, height] = area.get_surface_size();
       let cr = area.get_context();
       let lineW = this._settings.get_int('spects-line-width');
-      for (let i = 0; i < this._freq.length; i++) {
+      let flip = this._settings.get_boolean('flip-visualizer');
+      for (let i = 0; i < values; i++) {
         cr.setSourceRGBA(1, this._freq[i] / 80, 1, 1);
         cr.setLineWidth(lineW);
-        cr.moveTo(lineW / 2 + i * width / this._spectBands, height);
-        cr.lineTo(lineW / 2 + i * width / this._spectBands, height * this._freq[i] / 80);
+        if (!flip) {
+          cr.moveTo(lineW / 2 + i * width / values, height);
+          cr.lineTo(lineW / 2 + i * width / values, height - 1);
+          cr.lineTo(lineW / 2 + i * width / values, height * this._freq[i] / 80);
+        } else {
+          cr.moveTo(lineW / 2 + i * width / values, 0);
+          cr.lineTo(lineW / 2 + i * width / values, 1);
+          cr.lineTo(lineW / 2 + i * width / values, height / 80 * (80 - this._freq[i]));
+        }
         cr.stroke();
       }
       cr.$dispose();
@@ -96,6 +104,11 @@ var Visualizer = GObject.registerClass(
 
     _update() {
       this._actor.queue_repaint();
+    }
+
+    getSpectBands() {
+      let [override, values] = this._settings.get_value('spect-over-ride').deep_unpack();
+      return (!override) ? this._spectBands : (values <= this._spectBands) ? values : this._spectBands
     }
 
     _getMetaRectForCoords(x, y) {
@@ -188,16 +201,36 @@ var Visualizer = GObject.registerClass(
       return this;
     }
 
-    getMenuItem() {
+    async setDefaultSrc() {
       try {
-        let [ok, out, err, exit] = GLib.spawn_command_line_sync(`sh -c "pactl list | grep -A2 'Source #' | grep 'Name: ' | cut -d' ' -f2"`);
-        if (out.length > 0) {
-          return Decoder.decode(out).trim().split('\n');
-        }
-      }
-      catch (e) {
+        let src = await this.getDefaultSrc();
+        this._src.set_property('device', src);
+      } catch (e) {
         logError(e);
       }
+    }
+
+    getDefaultSrc() {
+      return new Promise((resolve, reject) => {
+        GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+          let stream = (major < 43) ? Main.panel.statusArea.aggregateMenu._volume._volumeMenu._output.stream : Main.panel.statusArea.quickSettings._volume._output.stream;
+          (stream !== null) ? resolve(stream.get_name() + '.monitor'): reject(Error('failure'));
+          return GLib.SOURCE_REMOVE;
+        });
+      });
+    }
+
+    getStreams() {
+      return new Promise((resolve, reject) => {
+        GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+          let control = (major < 43) ? Main.panel.statusArea.aggregateMenu._volume._control : Main.panel.statusArea.quickSettings._volume._control;
+          if (control.get_state() == Gvc.MixerControlState.READY) {
+            let streams = control.get_streams();
+            (streams.length > 0) ? resolve(streams): reject(Error('failure'))
+          }
+          return GLib.SOURCE_REMOVE;
+        });
+      });
     }
 
     vfunc_button_press_event() {
@@ -233,36 +266,49 @@ var Visualizer = GObject.registerClass(
       GLib.Source.set_name_by_id(this._menuTimeoutId, '[visualizer] this.popupMenu');
     }
 
-    _popupMenu() {
-      this._removeMenuTimeout();
-      if (!this._menu) {
-        this._subMenuItem = [];
-        this._menu = new PopupMenu.PopupMenu(this, 0.5, St.Side.TOP);
-        let srcDevice = new PopupMenu.PopupSubMenuMenuItem('Change Audio Source');
-        this._menu.addMenuItem(srcDevice);
-        for (let i = 0; i < this._menuItems.length; i++) {
-          let item = new PopupMenu.PopupMenuItem(this._menuItems[i]);
-          item.connect('activate', () => {
-            for (let k = 0; k < this._menuItems.length; k++) {
-              this._subMenuItem[k].setOrnament(this._menuItems[i] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
+    async _popupMenu() {
+      try {
+        this._removeMenuTimeout();
+        if (!this._menu) {
+          this._subMenuItem = [];
+          this._menuItems = [];
+          let stream = await this.getStreams();
+          for (let i = 0; i < stream.length; i++) {
+            if (stream[i] instanceof Gvc.MixerSink) {
+              this._menuItems.push(stream[i].get_name() + '.monitor');
+            } else if (stream[i] instanceof Gvc.MixerSource) {
+              this._menuItems.push(stream[i].get_name());
             }
-            this._src.set_property("device", this._menuItems[i]);
+          }
+          this._menu = new PopupMenu.PopupMenu(this, 0.5, St.Side.TOP);
+          let srcDevice = new PopupMenu.PopupSubMenuMenuItem('Change Audio Source');
+          this._menu.addMenuItem(srcDevice);
+          for (let i = 0; i < this._menuItems.length; i++) {
+            let item = new PopupMenu.PopupMenuItem(this._menuItems[i]);
+            item.connect('activate', () => {
+              for (let k = 0; k < this._menuItems.length; k++) {
+                this._subMenuItem[k].setOrnament(this._menuItems[i] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
+              }
+              this._src.set_property("device", this._menuItems[i]);
+            });
+            srcDevice.menu.addMenuItem(item, i);
+            this._subMenuItem.push(item);
+          }
+          for (let k = 0; k < this._menuItems.length; k++) {
+            this._subMenuItem[k].setOrnament(await this.getDefaultSrc() == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
+          }
+          this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+          this._menu.addAction("Visualizer Settings", () => {
+            ExtensionUtils.openPrefs();
           });
-          srcDevice.menu.addMenuItem(item, i);
-          this._subMenuItem.push(item);
+          Main.uiGroup.add_actor(this._menu.actor);
+          this._visualMenuManager.addMenu(this._menu);
         }
-        for (let k = 0; k < this._menuItems.length; k++) {
-          this._subMenuItem[k].setOrnament(this._menuItems[0] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
-        }
-        this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this._menu.addAction("Visualizer Settings", () => {
-          ExtensionUtils.openPrefs();
-        });
-        Main.uiGroup.add_actor(this._menu.actor);
-        this._visualMenuManager.addMenu(this._menu);
+        this._menu.open();
+        return false;
+      } catch (e) {
+        logError(e);
       }
-      this._menu.open();
-      return false;
     }
 
     onDestroy() {
@@ -289,6 +335,7 @@ var Visualizer = GObject.registerClass(
         this.actorInit();
         this._update();
       });
+      this._settings.connect('changed::spect-over-ride', () => this.getSpectBands());
       this._settings.connect('changed::spects-line-width', () => this._update());
     }
   });

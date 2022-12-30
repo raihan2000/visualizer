@@ -45,8 +45,7 @@ class PrefsWindow {
         /*margin_top: 5,
         margin_bottom: 5,*/
       });
-    }
-    else {
+    } else {
       group = new Adw.PreferencesGroup();
     }
     page.add(group);
@@ -78,12 +77,39 @@ class PrefsWindow {
     this.append_row(group, title, button);
   }
 
+  append_expander_row(titleEx, group, title, key) {
+    let [testEnabled, spect] = this._settings.get_value(key).deep_unpack();
+    let spin = Gtk.SpinButton.new_with_range(1, 256, 1);
+    spin.set_value(spect);
+    spin.connect('value-changed', (widget) => {
+      let settingArray = this._settings.get_value(key).deep_unpack();
+      settingArray[1] = widget.value;
+      this._settings.set_value(key, new GLib.Variant('(bi)', settingArray));
+    });
+    let expand_row = new Adw.ExpanderRow({
+      title: titleEx,
+      show_enable_switch: true,
+      expanded: testEnabled,
+      enable_expansion: testEnabled
+    });
+    let row = new Adw.ActionRow({
+      title: title,
+    });
+    expand_row.connect("notify::enable-expansion", (widget) => {
+      let settingArray = this._settings.get_value(key).deep_unpack();
+      settingArray[0] = widget.enable_expansion;
+      this._settings.set_value(key, new GLib.Variant('(bi)', settingArray));
+    });
+    row.add_suffix(spin);
+    expand_row.add_row(row);
+    group.add(expand_row);
+  };
+
   append_spin_button(group, title, is_double, key, min, max, step) {
     let v = 0;
     if (is_double) {
       v = this._settings.get_double(key);
-    }
-    else {
+    } else {
       v = this._settings.get_int(key);
     }
     let spin = Gtk.SpinButton.new_with_range(min, max, step);
@@ -117,10 +143,12 @@ class PrefsWindow {
   fillPrefsWindow() {
     let visualWidget = this.create_page('Visualizer'); {
       let groupVisual = this.create_group(visualWidget);
+      this.append_switch(groupVisual, 'Flip the Visualizer', 'flip-visualizer');
       this.append_spin_button(groupVisual, 'Visualizer Height', false, 'visualizer-height', 1, 200, 1);
       this.append_spin_button(groupVisual, 'Visualizer Width', false, 'visualizer-width', 1, 1920, 1);
       this.append_spin_button(groupVisual, 'Spects Line Width', false, 'spects-line-width', 1, 20, 1);
-      this.append_spin_button(groupVisual, 'Change Spects Value', false, 'total-spects-band', 1, 256, 1);
+      this.append_spin_button(groupVisual, 'Change Spects Band to Get', false, 'total-spects-band', 1, 256, 1);
+      this.append_expander_row('Override Spect Value', groupVisual, 'Set Spects Value', 'spect-over-ride');
     }
 
     let aboutPage = this.create_page('About'); {

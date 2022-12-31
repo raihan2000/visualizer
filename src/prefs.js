@@ -48,6 +48,7 @@ const prefsWidget = GObject.registerClass(
       }
       this.append_page(aboutBox, new Gtk.Label({ label: 'About' }));
     }
+
     attachHybridRow(grid, label, label1, button, button1, row) {
       grid.attach(label, 0, row, 1, 1);
       grid.attach(button, 1, row, 1, 1);

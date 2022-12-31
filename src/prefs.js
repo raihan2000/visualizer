@@ -1,21 +1,65 @@
 'use strict';
 
-const { Adw, Gio, Gtk, Gdk, GLib } = imports.gi;
+let Adw;
+const { Gio, Gtk, Gdk, GLib, GObject } = imports.gi;
 const Params = imports.misc.params;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
+const Config = imports.misc.config;
+const [major, minor] = Config.PACKAGE_VERSION.split('.').map(s => Number(s));
+const settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
 
 function init() {}
 
 function fillPreferencesWindow(window) {
+  Adw = imports.gi.Adw;
   let prefs = new PrefsWindow(window);
   prefs.fillPrefsWindow();
 }
 
+function buildPrefsWidget() {
+  let widget = new prefsWidget();
+  (major < 40) ? widget.show_all(): widget.show();
+  return widget;
+}
+
+const prefsWidget = GObject.registerClass(
+  class prefsWidget extends Gtk.Notebook {
+
+    _init(params) {
+      super._init(params);
+      this.margin = 20;
+
+      let grid = new Gtk.Grid();
+      attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer' }), getSwitch('flip-visualizer'), 0);
+      attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', 1, 200, 1), 1);
+      attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', 1, 1920, 1), 2);
+      attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', 1, 20, 1), 3);
+      attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', 1, 256, 1), 4);
+      this.attachHybridRow(grid, new Gtk.Label({ label: 'Override Spect Value' }), new Gtk.Label({ label: 'Set Spects Value' }), getSwitch('spect-over-ride-bool'), getSpinButton(false, 'spect-over-ride', 1, 256, 1), 5);
+      this.append_page(grid, new Gtk.Label({ label: 'Visualizer' }));
+      let aboutBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+      if (major < 40) {
+        aboutBox.add(new Gtk.Label({ label: Me.metadata.name }));
+        aboutBox.add(new Gtk.Label({ label: 'Version: ' + Me.metadata.version.toString() }));
+      } else {
+        aboutBox.append(new Gtk.Label({ label: Me.metadata.name }));
+        aboutBox.append(new Gtk.Label({ label: 'Version: ' + Me.metadata.version.toString() }));
+      }
+      this.append_page(aboutBox, new Gtk.Label({ label: 'About' }));
+    }
+    attachHybridRow(grid, label, label1, button, button1, row) {
+      grid.attach(label, 0, row, 1, 1);
+      grid.attach(button, 1, row, 1, 1);
+      grid.attach(label1, 0, row + 1, 1, 1);
+      grid.attach(button1, 1, row + 1, 1, 1);
+    }
+  });
+
 class PrefsWindow {
   constructor(window) {
     this._window = window;
-    this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
+    this._settings = settings;
   }
 
   create_page(title) {
@@ -42,8 +86,8 @@ class PrefsWindow {
     if (title !== undefined) {
       group = new Adw.PreferencesGroup({
         title: title,
-        /*margin_top: 5,
-        margin_bottom: 5,*/
+        //margin_top: 5,
+        //margin_bottom: 5,
       });
     } else {
       group = new Adw.PreferencesGroup();
@@ -61,62 +105,25 @@ class PrefsWindow {
     row.activatable_widget = widget;
   }
 
-  // create a new Adw.ActionRow to insert an option into a prefsGroup
-  append_switch(group, title, key) {
-    let button = new Gtk.Switch({
-      active: key,
-      valign: Gtk.Align.CENTER,
-    });
-
-    this._settings.bind(
-      key,
-      button,
-      'active',
-      Gio.SettingsBindFlags.DEFAULT
-    );
-    this.append_row(group, title, button);
-  }
-
-  append_expander_row(titleEx, group, title, key) {
-    let [testEnabled, spect] = this._settings.get_value(key).deep_unpack();
-    let spin = Gtk.SpinButton.new_with_range(1, 256, 1);
-    spin.set_value(spect);
-    spin.connect('value-changed', (widget) => {
-      let settingArray = this._settings.get_value(key).deep_unpack();
-      settingArray[1] = widget.value;
-      this._settings.set_value(key, new GLib.Variant('(bi)', settingArray));
-    });
+  append_expander_row(group, titleEx, title, key, key1) {
     let expand_row = new Adw.ExpanderRow({
       title: titleEx,
       show_enable_switch: true,
-      expanded: testEnabled,
-      enable_expansion: testEnabled
+      expanded: this._settings.get_boolean(key),
+      enable_expansion: this._settings.get_boolean(key)
     });
     let row = new Adw.ActionRow({
       title: title,
     });
     expand_row.connect("notify::enable-expansion", (widget) => {
-      let settingArray = this._settings.get_value(key).deep_unpack();
-      settingArray[0] = widget.enable_expansion;
-      this._settings.set_value(key, new GLib.Variant('(bi)', settingArray));
+      let settingArray = this._settings.get_boolean(key);
+      settingArray = widget.enable_expansion;
+      this._settings.set_value(key, new GLib.Variant('b', settingArray));
     });
-    row.add_suffix(spin);
+    row.add_suffix(key1);
     expand_row.add_row(row);
     group.add(expand_row);
   };
-
-  append_spin_button(group, title, is_double, key, min, max, step) {
-    let v = 0;
-    if (is_double) {
-      v = this._settings.get_double(key);
-    } else {
-      v = this._settings.get_int(key);
-    }
-    let spin = Gtk.SpinButton.new_with_range(min, max, step);
-    spin.set_value(v);
-    this._settings.bind(key, spin, 'value', Gio.SettingsBindFlags.DEFAULT);
-    this.append_row(group, title, spin);
-  }
 
   append_info_group(group, name, title) {
     let adw_group = new Adw.PreferencesGroup();
@@ -143,18 +150,39 @@ class PrefsWindow {
   fillPrefsWindow() {
     let visualWidget = this.create_page('Visualizer'); {
       let groupVisual = this.create_group(visualWidget);
-      this.append_switch(groupVisual, 'Flip the Visualizer', 'flip-visualizer');
-      this.append_spin_button(groupVisual, 'Visualizer Height', false, 'visualizer-height', 1, 200, 1);
-      this.append_spin_button(groupVisual, 'Visualizer Width', false, 'visualizer-width', 1, 1920, 1);
-      this.append_spin_button(groupVisual, 'Spects Line Width', false, 'spects-line-width', 1, 20, 1);
-      this.append_spin_button(groupVisual, 'Change Spects Band to Get', false, 'total-spects-band', 1, 256, 1);
-      this.append_expander_row('Override Spect Value', groupVisual, 'Set Spects Value', 'spect-over-ride');
+      this.append_row(groupVisual, 'Flip the Visualizer', getSwitch('flip-visualizer'));
+      this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1));
+      this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1));
+      this.append_row(groupVisual, 'Spects Line Width', getSpinButton(false, 'spects-line-width', 1, 20, 1));
+      this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1));
+      this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1));
     }
 
     let aboutPage = this.create_page('About'); {
       let groupAbout = this.create_group(aboutPage);
-      this.append_info_group(groupAbout, Me.metadata.name,
-        Me.metadata.version.toString());
+      this.append_info_group(groupAbout, Me.metadata.name, Me.metadata.version.toString());
     }
   }
+}
+
+function attachItems(grid, label, widget, row) {
+  grid.set_column_spacing(200);
+  grid.set_row_spacing(25);
+  grid.attach(label, 0, row, 1, 1);
+  grid.attach(widget, 1, row, 1, 1);
+}
+
+function getSwitch(key) {
+  let button = new Gtk.Switch({ active: key, valign: Gtk.Align.CENTER });
+  settings.bind(key, button, 'active', Gio.SettingsBindFlags.DEFAULT);
+  return button
+}
+
+function getSpinButton(is_double, key, min, max, step) {
+  let v = 0;
+  (is_double) ? v = settings.get_double(key) : v = settings.get_int(key);
+  let spin = Gtk.SpinButton.new_with_range(min, max, step);
+  spin.set_value(v);
+  settings.bind(key, spin, 'value', Gio.SettingsBindFlags.DEFAULT);
+  return spin;
 }

@@ -28,10 +28,15 @@
 			<default>false</default>
 			<summary>Flip Visualizer</summary>
 		</key>
-    <key type="(bi)" name="spect-over-ride">
-      <default>(false, 64)</default>
-      <summary>Override Spects Bands</summary>
-      <description>Override Spects Bands</description>
-    </key>
+		<key type="b" name="spect-over-ride-bool">
+			<default>false</default>
+			<summary>Override Spects Bands Boolean</summary>
+			<description>Override Spects Bands Boolean</description>
+		</key>
+		<key type="i" name="spect-over-ride">
+			<default>64</default>
+			<summary>Override Spects Bands</summary>
+			<description>Override Spects Bands</description>
+		</key>
 	</schema>
 </schemalist>

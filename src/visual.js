@@ -109,7 +109,6 @@ var Visualizer = GObject.registerClass(
     getSpectBands() {
       let override = this._settings.get_boolean('spect-over-ride-bool');
       let values = this._settings.get_int('spect-over-ride');
-      print('O: ' + override + ' V: ' + values);
       return (!override) ? this._spectBands : (values <= this._spectBands) ? values : this._spectBands
     }
 

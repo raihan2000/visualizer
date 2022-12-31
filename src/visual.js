@@ -107,7 +107,9 @@ var Visualizer = GObject.registerClass(
     }
 
     getSpectBands() {
-      let [override, values] = this._settings.get_value('spect-over-ride').deep_unpack();
+      let override = this._settings.get_boolean('spect-over-ride-bool');
+      let values = this._settings.get_int('spect-over-ride');
+      print('O: ' + override + ' V: ' + values);
       return (!override) ? this._spectBands : (values <= this._spectBands) ? values : this._spectBands
     }
 
@@ -336,6 +338,7 @@ var Visualizer = GObject.registerClass(
         this._update();
       });
       this._settings.connect('changed::spect-over-ride', () => this.getSpectBands());
+      this._settings.connect('changed::spect-over-ride-bool', () => this.getSpectBands());
       this._settings.connect('changed::spects-line-width', () => this._update());
     }
   });

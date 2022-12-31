@@ -18,7 +18,7 @@ function enable() {
 function disable() {
   if (timeoutId) {
     GLib.Source.remove(timeoutId);
-    tiemoutId = null;
+    timeoutId = null;
   }
   visual.onDestroy();
   visual = null;

@@ -32,6 +32,8 @@ var Visualizer = GObject.registerClass(
       this.actorInit();
       this._actor.connect('repaint', (area) => this.drawStuff(area));
       this.setupGst();
+      this.setDefaultSrc();
+      this.getMenuItems();
       this._update();
       this.setPosition();
       Main.layoutManager._backgroundGroup.add_child(this);
@@ -41,7 +43,6 @@ var Visualizer = GObject.registerClass(
       Gst.init(null);
       this._pipeline = Gst.Pipeline.new("bin");
       this._src = Gst.ElementFactory.make("pulsesrc", "src");
-      this.setDefaultSrc();
       this._spectrum = Gst.ElementFactory.make("spectrum", "spectrum");
       this._spectrum.set_property("bands", this._spectBands);
       this._spectrum.set_property("threshold", -80);
@@ -202,10 +203,32 @@ var Visualizer = GObject.registerClass(
       return this;
     }
 
+    async getMenuItems() {
+      try {
+        this._menuItems = [];
+        let stream = await this.getStreams();
+        for (let i = 0; i < stream.length; i++) {
+          if (stream[i] instanceof Gvc.MixerSink) {
+            this._menuItems.push(stream[i].get_name() + '.monitor');
+          } else if (stream[i] instanceof Gvc.MixerSource) {
+            this._menuItems.push(stream[i].get_name());
+          }
+        }
+        if (this._menuItems.length > 0) {
+          this._removeSource(this._streamId);
+        }
+      } catch (e) {
+        logError(e);
+      }
+    }
+
     async setDefaultSrc() {
       try {
-        let src = await this.getDefaultSrc();
-        this._src.set_property('device', src);
+        this._defaultSrc = await this.getDefaultSrc();
+        this._src.set_property('device', this._defaultSrc);
+        if (this._defaultSrc !== undefined) {
+          this._removeSource(this._defaultSrcId);
+        }
       } catch (e) {
         logError(e);
       }
@@ -213,7 +236,7 @@ var Visualizer = GObject.registerClass(
 
     getDefaultSrc() {
       return new Promise((resolve, reject) => {
-        GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+        this._defaultSrcId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
           let stream = (major < 43) ? Main.panel.statusArea.aggregateMenu._volume._volumeMenu._output.stream : Main.panel.statusArea.quickSettings._volume._output.stream;
           (stream !== null) ? resolve(stream.get_name() + '.monitor'): reject(Error('failure'));
           return GLib.SOURCE_REMOVE;
@@ -223,7 +246,7 @@ var Visualizer = GObject.registerClass(
 
     getStreams() {
       return new Promise((resolve, reject) => {
-        GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+        this._streamId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
           let control = (major < 43) ? Main.panel.statusArea.aggregateMenu._volume._control : Main.panel.statusArea.quickSettings._volume._control;
           if (control.get_state() == Gvc.MixerControlState.READY) {
             let streams = control.get_streams();
@@ -267,56 +290,42 @@ var Visualizer = GObject.registerClass(
       GLib.Source.set_name_by_id(this._menuTimeoutId, '[visualizer] this.popupMenu');
     }
 
-    async _popupMenu() {
-      try {
-        this._removeMenuTimeout();
-        if (!this._menu) {
-          this._subMenuItem = [];
-          this._menuItems = [];
-          let stream = await this.getStreams();
-          for (let i = 0; i < stream.length; i++) {
-            if (stream[i] instanceof Gvc.MixerSink) {
-              this._menuItems.push(stream[i].get_name() + '.monitor');
-            } else if (stream[i] instanceof Gvc.MixerSource) {
-              this._menuItems.push(stream[i].get_name());
+    _popupMenu() {
+      this._removeMenuTimeout();
+      if (!this._menu) {
+        this._subMenuItem = [];
+        this._menu = new PopupMenu.PopupMenu(this, 0.5, St.Side.TOP);
+        let srcDevice = new PopupMenu.PopupSubMenuMenuItem('Change Audio Source');
+        this._menu.addMenuItem(srcDevice);
+        for (let i = 0; i < this._menuItems.length; i++) {
+          let item = new PopupMenu.PopupMenuItem(this._menuItems[i]);
+          item.connect('activate', () => {
+            for (let k = 0; k < this._menuItems.length; k++) {
+              this._subMenuItem[k].setOrnament(this._menuItems[i] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
             }
-          }
-          this._menu = new PopupMenu.PopupMenu(this, 0.5, St.Side.TOP);
-          let srcDevice = new PopupMenu.PopupSubMenuMenuItem('Change Audio Source');
-          this._menu.addMenuItem(srcDevice);
-          for (let i = 0; i < this._menuItems.length; i++) {
-            let item = new PopupMenu.PopupMenuItem(this._menuItems[i]);
-            item.connect('activate', () => {
-              for (let k = 0; k < this._menuItems.length; k++) {
-                this._subMenuItem[k].setOrnament(this._menuItems[i] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
-              }
-              this._src.set_property("device", this._menuItems[i]);
-            });
-            srcDevice.menu.addMenuItem(item, i);
-            this._subMenuItem.push(item);
-          }
-          for (let k = 0; k < this._menuItems.length; k++) {
-            this._subMenuItem[k].setOrnament(await this.getDefaultSrc() == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
-          }
-          this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-          this._menu.addAction("Visualizer Settings", () => {
-            ExtensionUtils.openPrefs();
+            this._src.set_property("device", this._menuItems[i]);
           });
-          Main.uiGroup.add_actor(this._menu.actor);
-          this._visualMenuManager.addMenu(this._menu);
+          srcDevice.menu.addMenuItem(item, i);
+          this._subMenuItem.push(item);
         }
-        this._menu.open();
-        return false;
-      } catch (e) {
-        logError(e);
+        for (let k = 0; k < this._menuItems.length; k++) {
+          this._subMenuItem[k].setOrnament(this._defaultSrc == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
+        }
+        this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this._menu.addAction("Visualizer Settings", () => {
+          ExtensionUtils.openPrefs();
+        });
+        Main.uiGroup.add_actor(this._menu.actor);
+        this._visualMenuManager.addMenu(this._menu);
       }
+      this._menu.open();
+      return false;
     }
 
     onDestroy() {
-      if (this._menuTimeoutId) {
-        GLib.Source.remove(this._menuTimeoutId);
-        this._menuTimeoutId = null;
-      }
+      this._removeSource(this._menuTimeoutId);
+      this._removeSource(this._streamId);
+      this._removeSource(this._defaultSrcId);
       this._pipeline.set_state(Gst.State.NULL);
       Main.layoutManager._backgroundGroup.remove_child(this);
     }
@@ -339,5 +348,12 @@ var Visualizer = GObject.registerClass(
       this._settings.connect('changed::spect-over-ride', () => this.getSpectBands());
       this._settings.connect('changed::spect-over-ride-bool', () => this.getSpectBands());
       this._settings.connect('changed::spects-line-width', () => this._update());
+    }
+
+    _removeSource(src) {
+      if (src) {
+        GLib.Source.remove(src);
+        src = null;
+      }
     }
   });

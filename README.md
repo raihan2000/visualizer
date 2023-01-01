@@ -11,6 +11,9 @@ For Desktop Widgets I'm Using [Circular Widgets](https://extensions.gnome.org/ex
 - Change Audio source from Menu (To change right/left click on Visualizer)
 - Change Visualizer size
 - Increase or Decrease Bands
+- Choose how many bands will appear on display
+- Now you can Flip Visualizer
+- Added older version Gnome Shell v3.36 to v43.0
 
 More Feature will be added in Future
 

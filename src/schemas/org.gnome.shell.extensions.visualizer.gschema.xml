@@ -1,33 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.visualizer" path="/org/gnome/shell/extensions/visualizer/">
-    <!-- See also: https://docs.gtk.org/glib/gvariant-format-strings.html -->
+	<schema id="org.gnome.shell.extensions.visualizer" path="/org/gnome/shell/extensions/visualizer/">
+		<!-- See also: https://docs.gtk.org/glib/gvariant-format-strings.html -->
 		<key type="(ii)" name="visualizer-location">
-            <default>(400, 100)</default>
-            <summary>Location of visualizer</summary>
-            <description>Location of visualizer</description>
+			<default>(400, 100)</default>
+			<summary>Location of visualizer</summary>
+			<description>Location of visualizer</description>
 		</key>
-		
 		<!--Visualizer-->
 		<key name="visualizer-height" type="i">
-      		<default>150</default>
-      		<summary>Vertical Size of DrawingArea</summary>
-    </key>
-		
+			<default>150</default>
+			<summary>Vertical Size of DrawingArea</summary>
+		</key>
 		<key name="visualizer-width" type="i">
-      		<default>720</default>
-      		<summary>Horizontal Size of DrawingArea</summary>
-    </key>
-		
+			<default>720</default>
+			<summary>Horizontal Size of DrawingArea</summary>
+		</key>
 		<key name="spects-line-width" type="i">
-      		<default>5</default>
-      		<summary>All Spect Bands width</summary>
-    </key>
-		
+			<default>5</default>
+			<summary>All Spect Bands width</summary>
+		</key>
 		<key name="total-spects-band" type="i">
-      		<default>64</default>
-      		<summary>Count Total Spects Bands</summary>
-    </key>
-		
+			<default>64</default>
+			<summary>Count Total Spects Bands</summary>
+		</key>
+		<key name="flip-visualizer" type="b">
+			<default>false</default>
+			<summary>Flip Visualizer</summary>
+		</key>
+		<key type="b" name="spect-over-ride-bool">
+			<default>false</default>
+			<summary>Override Spects Bands Boolean</summary>
+			<description>Override Spects Bands Boolean</description>
+		</key>
+		<key type="i" name="spect-over-ride">
+			<default>64</default>
+			<summary>Override Spects Bands</summary>
+			<description>Override Spects Bands</description>
+		</key>
 	</schema>
 </schemalist>

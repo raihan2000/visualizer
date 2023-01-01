@@ -1,15 +1,15 @@
 'use strict';
 
-let Adw;
 const { Gio, Gtk, Gdk, GLib, GObject } = imports.gi;
 const Params = imports.misc.params;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
 const Config = imports.misc.config;
 const [major, minor] = Config.PACKAGE_VERSION.split('.').map(s => Number(s));
-const settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
+let Adw;
 
-function init() {}
+function init() {
+}
 
 function fillPreferencesWindow(window) {
   Adw = imports.gi.Adw;
@@ -28,15 +28,16 @@ const prefsWidget = GObject.registerClass(
 
     _init(params) {
       super._init(params);
+      this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
       this.margin = 20;
 
       let grid = new Gtk.Grid();
-      attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer' }), getSwitch('flip-visualizer'), 0);
-      attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', 1, 200, 1), 1);
-      attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', 1, 1920, 1), 2);
-      attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', 1, 20, 1), 3);
-      attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', 1, 256, 1), 4);
-      this.attachHybridRow(grid, new Gtk.Label({ label: 'Override Spect Value' }), new Gtk.Label({ label: 'Set Spects Value' }), getSwitch('spect-over-ride-bool'), getSpinButton(false, 'spect-over-ride', 1, 256, 1), 5);
+      attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer' }), getSwitch('flip-visualizer', this._settings), 0);
+      attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings), 1);
+      attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings), 2);
+      attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings), 3);
+      attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings), 4);
+      this.attachHybridRow(grid, new Gtk.Label({ label: 'Override Spect Value' }), new Gtk.Label({ label: 'Set Spects Value' }), getSwitch('spect-over-ride-bool', this._settings), getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings), 5);
       this.append_page(grid, new Gtk.Label({ label: 'Visualizer' }));
       let aboutBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
       if (major < 40) {
@@ -60,7 +61,7 @@ const prefsWidget = GObject.registerClass(
 class PrefsWindow {
   constructor(window) {
     this._window = window;
-    this._settings = settings;
+    this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
   }
 
   create_page(title) {
@@ -151,12 +152,12 @@ class PrefsWindow {
   fillPrefsWindow() {
     let visualWidget = this.create_page('Visualizer'); {
       let groupVisual = this.create_group(visualWidget);
-      this.append_row(groupVisual, 'Flip the Visualizer', getSwitch('flip-visualizer'));
-      this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1));
-      this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1));
-      this.append_row(groupVisual, 'Spects Line Width', getSpinButton(false, 'spects-line-width', 1, 20, 1));
-      this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1));
-      this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1));
+      this.append_row(groupVisual, 'Flip the Visualizer', getSwitch('flip-visualizer', this._settings));
+      this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings));
+      this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings));
+      this.append_row(groupVisual, 'Spects Line Width', getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings));
+      this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings));
+      this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
     }
 
     let aboutPage = this.create_page('About'); {
@@ -173,13 +174,13 @@ function attachItems(grid, label, widget, row) {
   grid.attach(widget, 1, row, 1, 1);
 }
 
-function getSwitch(key) {
+function getSwitch(key, settings) {
   let button = new Gtk.Switch({ active: key, valign: Gtk.Align.CENTER });
   settings.bind(key, button, 'active', Gio.SettingsBindFlags.DEFAULT);
   return button
 }
 
-function getSpinButton(is_double, key, min, max, step) {
+function getSpinButton(is_double, key, min, max, step, settings) {
   let v = 0;
   (is_double) ? v = settings.get_double(key) : v = settings.get_int(key);
   let spin = Gtk.SpinButton.new_with_range(min, max, step);

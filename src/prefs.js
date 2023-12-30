@@ -1,12 +1,22 @@
 'use strict';
 
 const { Gio, Gtk, Gdk, GLib, GObject } = imports.gi;
-const Params = imports.misc.params;
 const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
+const Params = imports.misc.params;
 const Config = imports.misc.config;
+const Me = ExtensionUtils.getCurrentExtension();
+
 const [major, minor] = Config.PACKAGE_VERSION.split('.').map(s => Number(s));
 let Adw;
+
+const DEFAULT_SPIN_MIN = 1;
+const DEFAULT_SPIN_MAX = 200;
+const VISUALIZER_WIDTH_MAX = 1920;
+const SPECTS_LINE_WIDTH_MAX = 20;
+const TOTAL_SPECTS_BAND_MAX = 256;
+const FPS_OPTIONS = ["15", "30", "60", "90", "120"];
+const GRID_COLUMN_SPACING = 200;
+const GRID_ROW_SPACING = 25;
 
 function init() {
 }
@@ -34,23 +44,25 @@ const prefsWidget = GObject.registerClass(
 
         let grid = new Gtk.Grid();
         let fpsOptions = new Gtk.ComboBoxText();
-        ["15", "30", "60", "90", "120"].forEach(fps => fpsOptions.append_text(fps));
+        FPS_OPTIONS.forEach(fps => fpsOptions.append_text(fps));
         fpsOptions.connect('changed', (widget) => {
           let fps = widget.get_active_text();
           this._settings.set_int('fps', parseInt(fps, 10));
         });
         let currentFps = this._settings.get_int('fps');
         fpsOptions.set_active_id(currentFps.toString());
+
         attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer' }), getSwitch('flip-visualizer', this._settings), 0);
         attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer Horizontally' }), getSwitch('horizontal-flip', this._settings), 1);
-        attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings), 2);
-        attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings), 3);
-        attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings), 5);
-        attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings), 4);
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', DEFAULT_SPIN_MIN, DEFAULT_SPIN_MAX, 1, this._settings), 2);
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', DEFAULT_SPIN_MIN, VISUALIZER_WIDTH_MAX, 1, this._settings), 3);
+        attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', DEFAULT_SPIN_MIN, SPECTS_LINE_WIDTH_MAX, 1, this._settings), 5);
+        attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', DEFAULT_SPIN_MIN, TOTAL_SPECTS_BAND_MAX, 1, this._settings), 4);
         attachItems(grid, new Gtk.Label({ label: 'Frames Per Second (FPS)' }), getDropDown(this._settings), 7);
         attachItems(grid, new Gtk.Label({ label: 'Visualizer Color' }), getColorButton(this._settings), 8);
         this.attachHybridRow(grid, new Gtk.Label({ label: 'Override Spect Value' }), new Gtk.Label({ label: 'Set Spects Value' }), getSwitch('spect-over-ride-bool', this._settings), getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings), 6);
         this.append_page(grid, new Gtk.Label({ label: 'Visualizer' }));
+
         let aboutBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
         if (major < 40) {
           aboutBox.add(new Gtk.Label({ label: Me.metadata.name }));
@@ -77,10 +89,12 @@ class PrefsWindow {
   }
 
   create_page(title) {
-    let page = new Adw.PreferencesPage({
-      title: title,
-      //icon_name: icon,
-    });
+    let page = new Adw.PreferencesPage(
+        {
+          title: title,
+          //icon_name: icon,
+        }
+    );
     this._window.add(page);
 
     // get the headerbar
@@ -111,9 +125,7 @@ class PrefsWindow {
   }
 
   append_row(group, title, widget) {
-    let row = new Adw.ActionRow({
-      title: title,
-    });
+    let row = new Adw.ActionRow({ title: title });
     group.add(row);
     row.add_suffix(widget);
     row.activatable_widget = widget;
@@ -126,12 +138,10 @@ class PrefsWindow {
       expanded: this._settings.get_boolean(key),
       enable_expansion: this._settings.get_boolean(key)
     });
-    let row = new Adw.ActionRow({
-      title: title,
-    });
+
+    let row = new Adw.ActionRow({ title: title });
     expand_row.connect("notify::enable-expansion", (widget) => {
-      let settingArray = this._settings.get_boolean(key);
-      settingArray = widget.enable_expansion;
+      let settingArray = widget.enable_expansion;
       this._settings.set_value(key, new GLib.Variant('b', settingArray));
     });
     row.add_suffix(key1);
@@ -141,20 +151,9 @@ class PrefsWindow {
 
   append_info_group(group, name, title) {
     let adw_group = new Adw.PreferencesGroup();
-    let infoBox = new Gtk.Box({
-      orientation: Gtk.Orientation.VERTICAL,
-      hexpand: false,
-      vexpand: false
-    });
-
-    let name_label = new Gtk.Label({
-      label: name,
-    });
-
-    let version = new Gtk.Label({
-      label: 'Version: ' + title,
-    });
-
+    let infoBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: false, vexpand: false});
+    let name_label = new Gtk.Label({ label: name });
+    let version = new Gtk.Label({ label: 'Version: ' + title });
     infoBox.append(name_label);
     infoBox.append(version);
     adw_group.add(infoBox);
@@ -183,8 +182,8 @@ class PrefsWindow {
 }
 
 function attachItems(grid, label, widget, row) {
-  grid.set_column_spacing(200);
-  grid.set_row_spacing(25);
+  grid.set_column_spacing(GRID_COLUMN_SPACING);
+  grid.set_row_spacing(GRID_ROW_SPACING);
   grid.attach(label, 0, row, 1, 1);
   grid.attach(widget, 1, row, 1, 1);
 }
@@ -196,18 +195,16 @@ function getSwitch(key, settings) {
 }
 
 function getSpinButton(is_double, key, min, max, step, settings) {
-  let v = 0;
-  (is_double) ? v = settings.get_double(key) : v = settings.get_int(key);
+  let value = is_double ? settings.get_double(key) : settings.get_int(key);
   let spin = Gtk.SpinButton.new_with_range(min, max, step);
-  spin.set_value(v);
+  spin.set_value(value);
   settings.bind(key, spin, 'value', Gio.SettingsBindFlags.DEFAULT);
   return spin;
 }
 
 function getDropDown(settings) {
   let dropDown = new Gtk.ComboBoxText();
-  let fpsValues = ["15", "30", "60", "90", "120"];
-  fpsValues.forEach(fps => dropDown.append_text(fps));
+  FPS_OPTIONS.forEach(fps => dropDown.append_text(fps));
 
   dropDown.connect('changed', (widget) => {
     let fps = widget.get_active_text();
@@ -215,7 +212,7 @@ function getDropDown(settings) {
   });
 
   let currentFps = settings.get_int('fps').toString();
-  let currentIndex = fpsValues.indexOf(currentFps);
+  let currentIndex = FPS_OPTIONS.indexOf(currentFps);
   if (currentIndex !== -1) {
     dropDown.set_active(currentIndex);
   }

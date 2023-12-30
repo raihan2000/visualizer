@@ -138,6 +138,7 @@ var Visualizer = GObject.registerClass(
         let blendedG = blendFactor * g + (1 - blendFactor);
         let blendedB = blendFactor * b + (1 - blendFactor);
         cr.setSourceRGBA(blendedR * intensity, blendedG * intensity, blendedB * intensity, a);
+        // Todo: Adjust gradient for compatibility with horizontal flip
 
 
         let xPosition = horizontal_flip ? width - (lineW / 2 + i * width / values) : lineW / 2 + i * width / values;

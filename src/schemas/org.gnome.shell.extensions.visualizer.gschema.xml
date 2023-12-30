@@ -8,6 +8,11 @@
 			<description>Location of visualizer</description>
 		</key>
 		<!--Visualizer-->
+		<key name="visualizer-color"  type="s">
+			<default>'1.0,0.0,1.0,1.0'</default>
+			<summary>Visualizer color</summary>
+			<description>The color of the visualizer</description>
+		</key>
 		<key name="flip-visualizer" type="b">
 			<default>false</default>
 			<summary>Flip Visualizer Vertically</summary>
@@ -46,14 +51,6 @@
 		<key name="visualizer-width" type="i">
 			<default>720</default>
 			<summary>Horizontal Size of DrawingArea</summary>
-		</key>
-		<key name="visualizer-pos-x" type="i">
-			<default>0</default>
-			<summary>Horizontal Position of DrawingArea</summary>
-		</key>
-		<key name="visualizer-pos-y" type="i">
-			<default>0</default>
-			<summary>Vertical Position of DrawingArea</summary>
 		</key>
 	</schema>
 </schemalist>

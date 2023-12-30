@@ -25,6 +25,7 @@ var Visualizer = GObject.registerClass(
       this._settings.connect('changed::horizontal-flip', () => this._updateFlipSettings());
       this._settings.connect('changed::visualizer-pos-x', () => this.setPosition());
       this._settings.connect('changed::visualizer-pos-y', () => this.setPosition());
+      this._settings.connect('changed::visualizer-color', () => this._update());
       let fps = this._settings.get_int('fps');
       this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
       this._freq = [];
@@ -51,7 +52,7 @@ var Visualizer = GObject.registerClass(
       this.startRefreshLoop();
       Main.layoutManager._backgroundGroup.add_child(this);
     }
-    
+
     startRefreshLoop() {
       if (this._refreshLoopId !== null) {
         GLib.Source.remove(this._refreshLoopId);
@@ -124,22 +125,30 @@ var Visualizer = GObject.registerClass(
       let lineW = this._settings.get_int('spects-line-width');
       let horizontal_flip = this._settings.get_boolean('horizontal-flip');
       let vertical_flip = this._settings.get_boolean('flip-visualizer');
-      
       cr.setLineWidth(lineW);
-      
+      let colorString = this._settings.get_string('visualizer-color');
+      let [r, g, b, a] = colorString.split(',').map(parseFloat);
+
       for (let i = 0; i < values; i++) {
-        let colorIntensity = this._freq[i] / 80;
-        cr.setSourceRGBA(1, colorIntensity, 1, 1);
+        let normalizedFreq = Math.max(Math.min(this._freq[i] / 80, 1), 0);
+        let intensity = Math.pow(normalizedFreq, 0.5);
+        intensity = Math.max(intensity, 0.2);
+        let blendFactor = horizontal_flip ? i / (values - 1) : 1 - i / (values - 1);
+        let blendedR = blendFactor * r + (1 - blendFactor);
+        let blendedG = blendFactor * g + (1 - blendFactor);
+        let blendedB = blendFactor * b + (1 - blendFactor);
+        cr.setSourceRGBA(blendedR * intensity, blendedG * intensity, blendedB * intensity, a);
+
 
         let xPosition = horizontal_flip ? width - (lineW / 2 + i * width / values) : lineW / 2 + i * width / values;
         let yPosition = vertical_flip ? height / 80 * (80 - this._freq[i]) : height * this._freq[i] / 80;
-        
+
         cr.moveTo(xPosition, vertical_flip ? 0 : height);
         cr.lineTo(xPosition, vertical_flip ? 1 : height - 1);
         cr.lineTo(xPosition, yPosition);
         cr.stroke();
       }
-      
+
       cr.$dispose();
     }
 
@@ -185,8 +194,7 @@ var Visualizer = GObject.registerClass(
     setPosition() {
       if (this._ignorePositionUpdate)
         return;
-      let x = this._settings.get_int('visualizer-pos-x');
-      let y = this._settings.get_int('visualizer-pos-y');
+      let [x, y] = this._settings.get_value('visualizer-location').deep_unpack();
       this.set_position(x, y);
       if (!this.get_parent())
         return;

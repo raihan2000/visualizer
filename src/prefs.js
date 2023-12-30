@@ -23,6 +23,22 @@ function buildPrefsWidget() {
   return widget;
 }
 
+function updatePositionMaxes() {
+  let visualizerWidth = this._settings.get_int('visualizer-width');
+  let visualizerHeight = this._settings.get_int('visualizer-height');
+
+  let display = Gdk.Display.get_default();
+  let monitor = display.get_primary_monitor();
+  let geometry = monitor.get_geometry();
+  let screenWidth = geometry.width;
+  let screenHeight = geometry.height;
+
+  let maxX = screenWidth - visualizerWidth;
+  let maxY = screenHeight - visualizerHeight;
+
+  this.visualizerXSpin.set_range(0, maxX);
+  this.visualizerYSpin.set_range(0, maxY);
+}
 
 
 const prefsWidget = GObject.registerClass(
@@ -34,7 +50,6 @@ const prefsWidget = GObject.registerClass(
         this.margin = 20;
 
         let grid = new Gtk.Grid();
-        let nextRow = 0;
         let fpsOptions = new Gtk.ComboBoxText();
         ["15", "30", "60", "90", "120"].forEach(fps => fpsOptions.append_text(fps));
         fpsOptions.connect('changed', (widget) => {
@@ -44,15 +59,14 @@ const prefsWidget = GObject.registerClass(
         let currentFps = this._settings.get_int('fps');
         fpsOptions.set_active_id(currentFps.toString());
         attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer' }), getSwitch('flip-visualizer', this._settings), 0);
-        attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer Horizontally' }), getSwitch('horizontal-flip', this._settings), 0);
-        attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings), 1);
-        attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings), 1);
-        attachItems(grid, new Gtk.Label({ label: 'Visualizer X Position' }), getSpinButton(false, 'visualizer-pos-x', 0, 1920, 1, this._settings), 2);  // Todo: Add multi-resolution support by checking screen size; Modify max to add or subtract by height/width based on flip status
-        attachItems(grid, new Gtk.Label({ label: 'Visualizer Y Position' }), getSpinButton(false, 'visualizer-pos-y', 0, 1080, 1, this._settings), 2);
-        attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings), 4);
-        attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings), 3);
-        attachItems(grid, new Gtk.Label({ label: 'Frames Per Second (FPS)' }), getDropDown(this._settings), 6);
-        this.attachHybridRow(grid, new Gtk.Label({ label: 'Override Spect Value' }), new Gtk.Label({ label: 'Set Spects Value' }), getSwitch('spect-over-ride-bool', this._settings), getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings), 5);
+        attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer Horizontally' }), getSwitch('horizontal-flip', this._settings), 1);
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings), 2);
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings), 3);
+        attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings), 5);
+        attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings), 4);
+        attachItems(grid, new Gtk.Label({ label: 'Frames Per Second (FPS)' }), getDropDown(this._settings), 7);
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer Color' }), getColorButton(this._settings), 8);
+        this.attachHybridRow(grid, new Gtk.Label({ label: 'Override Spect Value' }), new Gtk.Label({ label: 'Set Spects Value' }), getSwitch('spect-over-ride-bool', this._settings), getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings), 6);
         this.append_page(grid, new Gtk.Label({ label: 'Visualizer' }));
         let aboutBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
         if (major < 40) {
@@ -171,11 +185,10 @@ class PrefsWindow {
       this.append_row(groupVisual, 'Flip the Visualizer Horizontally', getSwitch('horizontal-flip', this._settings));
       this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings));
       this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings));
-      this.append_row(groupVisual, 'Visualizer X Position', getSpinButton(false, 'visualizer-pos-x', 0, 1920, 1, this._settings));
-      this.append_row(groupVisual, 'Visualizer Y Position', getSpinButton(false, 'visualizer-pos-y', 0, 1080, 1, this._settings));
       this.append_row(groupVisual, 'Spects Line Width', getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings));
       this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings));
       this.append_row(groupVisual, 'Frames Per Second (FPS)', getDropDown(this._settings));
+      this.append_row(groupVisual, 'Visualizer Color', getColorButton(this._settings));
       this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
     }
 
@@ -223,6 +236,20 @@ function getDropDown(settings) {
   if (currentIndex !== -1) {
     dropDown.set_active(currentIndex);
   }
-
   return dropDown;
+}
+
+function getColorButton(settings) {
+  let button = new Gtk.ColorButton();
+  let rgbaString = settings.get_string('visualizer-color');
+  let rgbaParts = rgbaString.split(',').map(parseFloat);
+  let gdkRGBA = new Gdk.RGBA({red: rgbaParts[0], green: rgbaParts[1], blue: rgbaParts[2], alpha: rgbaParts[3]});
+  button.set_rgba(gdkRGBA);
+  button.connect('color-set', () => {
+    let gdkRGBA = button.get_rgba();
+    let rgbaString = `${gdkRGBA.red},${gdkRGBA.green},${gdkRGBA.blue},${gdkRGBA.alpha}`;
+    settings.set_string('visualizer-color', rgbaString);
+  });
+
+  return button;
 }

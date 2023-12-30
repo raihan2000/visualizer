@@ -23,23 +23,6 @@ function buildPrefsWidget() {
   return widget;
 }
 
-function updatePositionMaxes() {
-  let visualizerWidth = this._settings.get_int('visualizer-width');
-  let visualizerHeight = this._settings.get_int('visualizer-height');
-
-  let display = Gdk.Display.get_default();
-  let monitor = display.get_primary_monitor();
-  let geometry = monitor.get_geometry();
-  let screenWidth = geometry.width;
-  let screenHeight = geometry.height;
-
-  let maxX = screenWidth - visualizerWidth;
-  let maxY = screenHeight - visualizerHeight;
-
-  this.visualizerXSpin.set_range(0, maxX);
-  this.visualizerYSpin.set_range(0, maxY);
-}
-
 
 const prefsWidget = GObject.registerClass(
     class prefsWidget extends Gtk.Notebook {

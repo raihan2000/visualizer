@@ -10,16 +10,26 @@ const [major, minor] = Config.PACKAGE_VERSION.split('.').map(s => Number(s));
 var Visualizer = GObject.registerClass(
   class musicVisualizer extends St.BoxLayout {
     _init() {
+      this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
       super._init({
         reactive: true,
         track_hover: true,
         can_focus: true
       });
+      this._settings.connect('changed::fps', () => {
+        let fps = this._settings.get_int('fps');
+        this._refreshRate = 1000 / fps;
+        this.updateGstInterval();
+        this.startRefreshLoop();
+      });
+      this._settings.connect('changed::horizontal-flip', () => this._updateFlipSettings());
+      this._settings.connect('changed::visualizer-pos-x', () => this.setPosition());
+      this._settings.connect('changed::visualizer-pos-y', () => this.setPosition());
+      let fps = this._settings.get_int('fps');
       this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
       this._freq = [];
       this._actor = new St.DrawingArea();
       this.add_child(this._actor);
-      this._settings = ExtensionUtils.getSettings();
       this.settingsChanged();
       this._draggable = DND.makeDraggable(this);
       this._draggable._animateDragEnd = (eventTime) => {
@@ -36,7 +46,33 @@ var Visualizer = GObject.registerClass(
       this.getMenuItems();
       this._update();
       this.setPosition();
+      this._refreshRate = 1000 / fps;
+      this._refreshLoopId = null;
+      this.startRefreshLoop();
       Main.layoutManager._backgroundGroup.add_child(this);
+    }
+    
+    startRefreshLoop() {
+      if (this._refreshLoopId !== null) {
+        GLib.Source.remove(this._refreshLoopId);
+      }
+      this._refreshLoopId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._refreshRate, () => {
+        this._actor.queue_repaint();
+        return true;
+      });
+    }
+
+    updateGstInterval() {
+      let fps = this._settings.get_int('fps');
+      let interval = 1000000000 / fps;
+      if (this._spectrum) {
+        this._spectrum.set_property("interval", interval);
+      }
+    }
+
+    _updateFlipSettings() {
+      this._horizontalFlip = this._settings.get_boolean('horizontal-flip');
+      this._update();
     }
 
     setupGst() {
@@ -47,6 +83,7 @@ var Visualizer = GObject.registerClass(
       this._spectrum.set_property("bands", this._spectBands);
       this._spectrum.set_property("threshold", -80);
       this._spectrum.set_property("post-messages", true);
+      this.updateGstInterval();
       let _sink = Gst.ElementFactory.make("fakesink", "sink");
       this._pipeline.add(this._src);
       this._pipeline.add(this._spectrum);
@@ -81,25 +118,28 @@ var Visualizer = GObject.registerClass(
     }
 
     drawStuff(area) {
-      let values = this.getSpectBands();
       let [width, height] = area.get_surface_size();
       let cr = area.get_context();
+      let values = this.getSpectBands();
       let lineW = this._settings.get_int('spects-line-width');
-      let flip = this._settings.get_boolean('flip-visualizer');
+      let horizontal_flip = this._settings.get_boolean('horizontal-flip');
+      let vertical_flip = this._settings.get_boolean('flip-visualizer');
+      
+      cr.setLineWidth(lineW);
+      
       for (let i = 0; i < values; i++) {
-        cr.setSourceRGBA(1, this._freq[i] / 80, 1, 1);
-        cr.setLineWidth(lineW);
-        if (!flip) {
-          cr.moveTo(lineW / 2 + i * width / values, height);
-          cr.lineTo(lineW / 2 + i * width / values, height - 1);
-          cr.lineTo(lineW / 2 + i * width / values, height * this._freq[i] / 80);
-        } else {
-          cr.moveTo(lineW / 2 + i * width / values, 0);
-          cr.lineTo(lineW / 2 + i * width / values, 1);
-          cr.lineTo(lineW / 2 + i * width / values, height / 80 * (80 - this._freq[i]));
-        }
+        let colorIntensity = this._freq[i] / 80;
+        cr.setSourceRGBA(1, colorIntensity, 1, 1);
+
+        let xPosition = horizontal_flip ? width - (lineW / 2 + i * width / values) : lineW / 2 + i * width / values;
+        let yPosition = vertical_flip ? height / 80 * (80 - this._freq[i]) : height * this._freq[i] / 80;
+        
+        cr.moveTo(xPosition, vertical_flip ? 0 : height);
+        cr.lineTo(xPosition, vertical_flip ? 1 : height - 1);
+        cr.lineTo(xPosition, yPosition);
         cr.stroke();
       }
+      
       cr.$dispose();
     }
 
@@ -145,7 +185,8 @@ var Visualizer = GObject.registerClass(
     setPosition() {
       if (this._ignorePositionUpdate)
         return;
-      let [x, y] = this._settings.get_value('visualizer-location').deep_unpack();
+      let x = this._settings.get_int('visualizer-pos-x');
+      let y = this._settings.get_int('visualizer-pos-y');
       this.set_position(x, y);
       if (!this.get_parent())
         return;
@@ -323,6 +364,9 @@ var Visualizer = GObject.registerClass(
     }
 
     onDestroy() {
+      if (this._refreshLoopId !== null) {
+        GLib.Source.remove(this._refreshLoopId);
+      }
       this._removeSource(this._menuTimeoutId);
       this._removeSource(this._streamId);
       this._removeSource(this._defaultSrcId);

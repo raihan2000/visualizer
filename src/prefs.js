@@ -23,40 +23,55 @@ function buildPrefsWidget() {
   return widget;
 }
 
+
+
 const prefsWidget = GObject.registerClass(
-  class prefsWidget extends Gtk.Notebook {
+    class prefsWidget extends Gtk.Notebook {
 
-    _init(params) {
-      super._init(params);
-      this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
-      this.margin = 20;
+      _init(params) {
+        super._init(params);
+        this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
+        this.margin = 20;
 
-      let grid = new Gtk.Grid();
-      attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer' }), getSwitch('flip-visualizer', this._settings), 0);
-      attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings), 1);
-      attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings), 2);
-      attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings), 3);
-      attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings), 4);
-      this.attachHybridRow(grid, new Gtk.Label({ label: 'Override Spect Value' }), new Gtk.Label({ label: 'Set Spects Value' }), getSwitch('spect-over-ride-bool', this._settings), getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings), 5);
-      this.append_page(grid, new Gtk.Label({ label: 'Visualizer' }));
-      let aboutBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
-      if (major < 40) {
-        aboutBox.add(new Gtk.Label({ label: Me.metadata.name }));
-        aboutBox.add(new Gtk.Label({ label: 'Version: ' + Me.metadata.version.toString() }));
-      } else {
-        aboutBox.append(new Gtk.Label({ label: Me.metadata.name }));
-        aboutBox.append(new Gtk.Label({ label: 'Version: ' + Me.metadata.version.toString() }));
+        let grid = new Gtk.Grid();
+        let nextRow = 0;
+        let fpsOptions = new Gtk.ComboBoxText();
+        ["15", "30", "60", "90", "120"].forEach(fps => fpsOptions.append_text(fps));
+        fpsOptions.connect('changed', (widget) => {
+          let fps = widget.get_active_text();
+          this._settings.set_int('fps', parseInt(fps, 10));
+        });
+        let currentFps = this._settings.get_int('fps');
+        fpsOptions.set_active_id(currentFps.toString());
+        attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer' }), getSwitch('flip-visualizer', this._settings), 0);
+        attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer Horizontally' }), getSwitch('horizontal-flip', this._settings), 0);
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings), 1);
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings), 1);
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer X Position' }), getSpinButton(false, 'visualizer-pos-x', 0, 1920, 1, this._settings), 2);  // Todo: Add multi-resolution support by checking screen size; Modify max to add or subtract by height/width based on flip status
+        attachItems(grid, new Gtk.Label({ label: 'Visualizer Y Position' }), getSpinButton(false, 'visualizer-pos-y', 0, 1080, 1, this._settings), 2);
+        attachItems(grid, new Gtk.Label({ label: 'Spects Line Width' }), getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings), 4);
+        attachItems(grid, new Gtk.Label({ label: 'Change Spects Band to Get' }), getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings), 3);
+        attachItems(grid, new Gtk.Label({ label: 'Frames Per Second (FPS)' }), getDropDown(this._settings), 6);
+        this.attachHybridRow(grid, new Gtk.Label({ label: 'Override Spect Value' }), new Gtk.Label({ label: 'Set Spects Value' }), getSwitch('spect-over-ride-bool', this._settings), getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings), 5);
+        this.append_page(grid, new Gtk.Label({ label: 'Visualizer' }));
+        let aboutBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+        if (major < 40) {
+          aboutBox.add(new Gtk.Label({ label: Me.metadata.name }));
+          aboutBox.add(new Gtk.Label({ label: 'Version: ' + Me.metadata.version.toString() }));
+        } else {
+          aboutBox.append(new Gtk.Label({ label: Me.metadata.name }));
+          aboutBox.append(new Gtk.Label({ label: 'Version: ' + Me.metadata.version.toString() }));
+        }
+        this.append_page(aboutBox, new Gtk.Label({ label: 'About' }));
       }
-      this.append_page(aboutBox, new Gtk.Label({ label: 'About' }));
-    }
 
-    attachHybridRow(grid, label, label1, button, button1, row) {
-      grid.attach(label, 0, row, 1, 1);
-      grid.attach(button, 1, row, 1, 1);
-      grid.attach(label1, 0, row + 1, 1, 1);
-      grid.attach(button1, 1, row + 1, 1, 1);
-    }
-  });
+      attachHybridRow(grid, label, label1, button, button1, row) {
+        grid.attach(label, 0, row, 1, 1);
+        grid.attach(button, 1, row, 1, 1);
+        grid.attach(label1, 0, row + 1, 1, 1);
+        grid.attach(button1, 1, row + 1, 1, 1);
+      }
+    });
 
 class PrefsWindow {
   constructor(window) {
@@ -152,11 +167,15 @@ class PrefsWindow {
   fillPrefsWindow() {
     let visualWidget = this.create_page('Visualizer'); {
       let groupVisual = this.create_group(visualWidget);
-      this.append_row(groupVisual, 'Flip the Visualizer', getSwitch('flip-visualizer', this._settings));
+      this.append_row(groupVisual, 'Flip the Visualizer Vertically', getSwitch('flip-visualizer', this._settings));
+      this.append_row(groupVisual, 'Flip the Visualizer Horizontally', getSwitch('horizontal-flip', this._settings));
       this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings));
       this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings));
+      this.append_row(groupVisual, 'Visualizer X Position', getSpinButton(false, 'visualizer-pos-x', 0, 1920, 1, this._settings));
+      this.append_row(groupVisual, 'Visualizer Y Position', getSpinButton(false, 'visualizer-pos-y', 0, 1080, 1, this._settings));
       this.append_row(groupVisual, 'Spects Line Width', getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings));
       this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings));
+      this.append_row(groupVisual, 'Frames Per Second (FPS)', getDropDown(this._settings));
       this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
     }
 
@@ -187,4 +206,23 @@ function getSpinButton(is_double, key, min, max, step, settings) {
   spin.set_value(v);
   settings.bind(key, spin, 'value', Gio.SettingsBindFlags.DEFAULT);
   return spin;
+}
+
+function getDropDown(settings) {
+  let dropDown = new Gtk.ComboBoxText();
+  let fpsValues = ["15", "30", "60", "90", "120"];
+  fpsValues.forEach(fps => dropDown.append_text(fps));
+
+  dropDown.connect('changed', (widget) => {
+    let fps = widget.get_active_text();
+    settings.set_int('fps', parseInt(fps, 10));
+  });
+
+  let currentFps = settings.get_int('fps').toString();
+  let currentIndex = fpsValues.indexOf(currentFps);
+  if (currentIndex !== -1) {
+    dropDown.set_active(currentIndex);
+  }
+
+  return dropDown;
 }

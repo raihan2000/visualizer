@@ -40,41 +40,44 @@ var Visualizer = GObject.registerClass(
         track_hover: true,
         can_focus: true
       });
-      this._settings.connect('changed::fps', () => {
-        let fps = this._settings.get_int('fps');
-        this._refreshRate = REFRESH_RATE_BASE / fps;
-        this.updateGstInterval();
-        this.startRefreshLoop();
-      });
-      this._settings.connect('changed::horizontal-flip', () => this._updateFlipSettings());
-      this._settings.connect('changed::visualizer-pos-x', () => this.setPosition());
-      this._settings.connect('changed::visualizer-pos-y', () => this.setPosition());
-      this._settings.connect('changed::visualizer-color', () => this._update());
-      let fps = this._settings.get_int('fps');
+      this._initializeSettings();
       this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
       this._freq = [];
       this._actor = new St.DrawingArea();
       this.add_child(this._actor);
       this.settingsChanged();
-      this._draggable = DND.makeDraggable(this);
-      this._draggable._animateDragEnd = (eventTime) => {
-        this._draggable._animationInProgress = true;
-        this._draggable._onAnimationComplete(this._draggable._dragActor, eventTime);
-      };
-      this._draggable.connect('drag-begin', this._onDragBegin.bind(this));
-      this._draggable.connect('drag-end', this._onDragEnd.bind(this));
-      this.connect('notify::hover', () => this._onHover());
-      this.actorInit();
-      this._actor.connect('repaint', (area) => this.drawStuff(area));
+      this.setupDraggable();
+      this.setupActor();
       this.setupGst();
       this.setDefaultSrc();
       this.getMenuItems();
       this._update();
       this.setPosition();
-      this._refreshRate = REFRESH_RATE_BASE / fps;
       this._refreshLoopId = null;
       this.startRefreshLoop();
       Main.layoutManager._backgroundGroup.add_child(this);
+    }
+
+    setupDraggable() {
+      this._draggable = DND.makeDraggable(this);
+      this._draggable._animateDragEnd = (eventTime) => {
+        this._draggable._animationInProgress = true;
+        this._draggable._onAnimationComplete(this._draggable._dragActor, eventTime);
+      };
+
+      this._draggable.connect('drag-begin', this._onDragBegin.bind(this));
+      this._draggable.connect('drag-end', this._onDragEnd.bind(this));
+
+      this.connect('notify::hover', () => this._onHover());
+
+      this.isDragging = false;
+      this._dragMonitor = null;
+      this.startX = 0;
+      this.startY = 0;
+      this.oldX = 0;
+      this.oldY = 0;
+      this.deltaX = 0;
+      this.deltaY = 0;
     }
 
     actorInit() {
@@ -83,6 +86,21 @@ var Visualizer = GObject.registerClass(
       this._spectWidth = this._settings.get_int('visualizer-width');
       this._actor.height = this._spectHeight;
       this._actor.width = this._spectWidth;
+    }
+
+    setupActor() {
+      this.actorInit();
+      this._actor.connect('repaint', (area) => this.drawStuff(area));
+    }
+
+    _initializeSettings() {
+      this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
+      this._connectSetting('fps', this._updateRefreshRate.bind(this));
+      this._connectSetting('horizontal-flip', this._updateFlipSettings.bind(this));
+      this._connectSetting('visualizer-pos-x', this.setPosition.bind(this));
+      this._connectSetting('visualizer-pos-y', this.setPosition.bind(this));
+      this._connectSetting('visualizer-color', this._update.bind(this));
+      this._refreshRate = REFRESH_RATE_BASE / this._settings.get_int('fps');
     }
 
     onDestroy() {
@@ -236,6 +254,11 @@ var Visualizer = GObject.registerClass(
       this._actor.queue_repaint();
     }
 
+    _updateFlipSettings() {
+      this._horizontalFlip = this._settings.get_boolean('horizontal-flip');
+      this._update();
+    }
+
     /*
      * Utility Methods
      */
@@ -277,6 +300,17 @@ var Visualizer = GObject.registerClass(
         return GLib.SOURCE_REMOVE;
       });
       GLib.Source.set_name_by_id(this._menuTimeoutId, '[visualizer] this.popupMenu');
+    }
+
+    _connectSetting(key, callback) {
+      this._settings.connect(`changed::${key}`, callback);
+    }
+
+    _updateRefreshRate() {
+      let fps = this._settings.get_int('fps');
+      this._refreshRate = REFRESH_RATE_BASE / fps;
+      this.updateGstInterval();
+      this.startRefreshLoop();
     }
 
     /*

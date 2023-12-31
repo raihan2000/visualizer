@@ -6,17 +6,17 @@ const Params = imports.misc.params;
 const Config = imports.misc.config;
 const Me = ExtensionUtils.getCurrentExtension();
 
-const [major, minor] = Config.PACKAGE_VERSION.split('.').map(s => Number(s));
+const [MajorVersion, MinorVersion] = Config.PACKAGE_VERSION.split('.').map(s => Number(s));
 let Adw;
 
-const DEFAULT_SPIN_MIN = 1;
-const DEFAULT_SPIN_MAX = 200;
-const VISUALIZER_WIDTH_MAX = 1920;
-const SPECTS_LINE_WIDTH_MAX = 20;
-const TOTAL_SPECTS_BAND_MAX = 256;
-const FPS_OPTIONS = ["15", "30", "60", "90", "120"];
-const GRID_COLUMN_SPACING = 200;
-const GRID_ROW_SPACING = 25;
+const DEFAULT_SPIN_MIN = 1; // Minimum pixel size
+const DEFAULT_SPIN_MAX = 200; // Maximum pixel size
+const VISUALIZER_WIDTH_MAX = 1920; // Maximum pixel size for width
+const SPECTS_LINE_WIDTH_MAX = 20; // Maximum pixel size for spect line widths
+const TOTAL_SPECTS_BAND_MAX = 256; // Maximum # of spect bands possible to be chosen
+const FPS_OPTIONS = ["15", "30", "60", "90", "120"]; // Frame counts; going from 15 to 120 fps
+const GRID_COLUMN_SPACING = 200; // Spacing between columns
+const GRID_ROW_SPACING = 25; // Spacing between rows
 
 function init() {
 }
@@ -29,8 +29,15 @@ function fillPreferencesWindow(window) {
 
 function buildPrefsWidget() {
   let widget = new prefsWidget();
-  (major < 40) ? widget.show_all(): widget.show();
+  (MajorVersion < 40) ? widget.show_all(): widget.show();
   return widget;
+}
+
+function attachItems(grid, label, widget, row) {
+  grid.set_column_spacing(GRID_COLUMN_SPACING);
+  grid.set_row_spacing(GRID_ROW_SPACING);
+  grid.attach(label, 0, row, 1, 1);
+  grid.attach(widget, 1, row, 1, 1);
 }
 
 
@@ -39,20 +46,12 @@ const prefsWidget = GObject.registerClass(
 
       _init(params) {
         super._init(params);
+        let grid = new Gtk.Grid();
         this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.visualizer');
+        this.setupFpsOptions();
         this.margin = 20;
 
-        let grid = new Gtk.Grid();
-        let fpsOptions = new Gtk.ComboBoxText();
-        FPS_OPTIONS.forEach(fps => fpsOptions.append_text(fps));
-        fpsOptions.connect('changed', (widget) => {
-          let fps = widget.get_active_text();
-          this._settings.set_int('fps', parseInt(fps, 10));
-        });
-        let currentFps = this._settings.get_int('fps');
-        fpsOptions.set_active_id(currentFps.toString());
-
-        attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer' }), getSwitch('flip-visualizer', this._settings), 0);
+        attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer Vertically' }), getSwitch('flip-visualizer', this._settings), 0);
         attachItems(grid, new Gtk.Label({ label: 'Flip the Visualizer Horizontally' }), getSwitch('horizontal-flip', this._settings), 1);
         attachItems(grid, new Gtk.Label({ label: 'Visualizer Height' }), getSpinButton(false, 'visualizer-height', DEFAULT_SPIN_MIN, DEFAULT_SPIN_MAX, 1, this._settings), 2);
         attachItems(grid, new Gtk.Label({ label: 'Visualizer Width' }), getSpinButton(false, 'visualizer-width', DEFAULT_SPIN_MIN, VISUALIZER_WIDTH_MAX, 1, this._settings), 3);
@@ -64,7 +63,7 @@ const prefsWidget = GObject.registerClass(
         this.append_page(grid, new Gtk.Label({ label: 'Visualizer' }));
 
         let aboutBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
-        if (major < 40) {
+        if (MajorVersion < 40) {
           aboutBox.add(new Gtk.Label({ label: Me.metadata.name }));
           aboutBox.add(new Gtk.Label({ label: 'Version: ' + Me.metadata.version.toString() }));
         } else {
@@ -72,6 +71,17 @@ const prefsWidget = GObject.registerClass(
           aboutBox.append(new Gtk.Label({ label: 'Version: ' + Me.metadata.version.toString() }));
         }
         this.append_page(aboutBox, new Gtk.Label({ label: 'About' }));
+      }
+
+      setupFpsOptions() {
+        let fpsOptions = new Gtk.ComboBoxText();
+        FPS_OPTIONS.forEach(fps => fpsOptions.append_text(fps));
+        fpsOptions.connect('changed', (widget) => {
+          let fps = widget.get_active_text();
+          this._settings.set_int('fps', parseInt(fps, 10));
+        });
+        let currentFps = this._settings.get_int('fps');
+        fpsOptions.set_active_id(currentFps.toString());
       }
 
       attachHybridRow(grid, label, label1, button, button1, row) {
@@ -165,13 +175,13 @@ class PrefsWindow {
       let groupVisual = this.create_group(visualWidget);
       this.append_row(groupVisual, 'Flip the Visualizer Vertically', getSwitch('flip-visualizer', this._settings));
       this.append_row(groupVisual, 'Flip the Visualizer Horizontally', getSwitch('horizontal-flip', this._settings));
-      this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings));
-      this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings));
-      this.append_row(groupVisual, 'Spects Line Width', getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings));
-      this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings));
+      this.append_row(groupVisual, 'Visualizer Height (px)', getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings));
+      this.append_row(groupVisual, 'Visualizer Width (px)', getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings));
+      this.append_row(groupVisual, 'Spects Line Width (px)', getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings));
+      this.append_row(groupVisual, 'Change # of Spect Bands to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings));
       this.append_row(groupVisual, 'Frames Per Second (FPS)', getDropDown(this._settings));
       this.append_row(groupVisual, 'Visualizer Color', getColorButton(this._settings));
-      this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
+      this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spect Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
     }
 
     let aboutPage = this.create_page('About'); {
@@ -179,13 +189,6 @@ class PrefsWindow {
       this.append_info_group(groupAbout, Me.metadata.name, Me.metadata.version.toString());
     }
   }
-}
-
-function attachItems(grid, label, widget, row) {
-  grid.set_column_spacing(GRID_COLUMN_SPACING);
-  grid.set_row_spacing(GRID_ROW_SPACING);
-  grid.attach(label, 0, row, 1, 1);
-  grid.attach(widget, 1, row, 1, 1);
 }
 
 function getSwitch(key, settings) {

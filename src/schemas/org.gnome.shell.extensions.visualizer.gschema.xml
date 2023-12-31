@@ -8,25 +8,18 @@
 			<description>Location of visualizer</description>
 		</key>
 		<!--Visualizer-->
-		<key name="visualizer-height" type="i">
-			<default>150</default>
-			<summary>Vertical Size of DrawingArea</summary>
-		</key>
-		<key name="visualizer-width" type="i">
-			<default>720</default>
-			<summary>Horizontal Size of DrawingArea</summary>
-		</key>
-		<key name="spects-line-width" type="i">
-			<default>5</default>
-			<summary>All Spect Bands width</summary>
-		</key>
-		<key name="total-spects-band" type="i">
-			<default>64</default>
-			<summary>Count Total Spects Bands</summary>
+		<key name="visualizer-color"  type="s">
+			<default>'1.0,0.0,1.0,1.0'</default>
+			<summary>Visualizer color</summary>
+			<description>The color of the visualizer</description>
 		</key>
 		<key name="flip-visualizer" type="b">
 			<default>false</default>
-			<summary>Flip Visualizer</summary>
+			<summary>Flip Visualizer Vertically</summary>
+		</key>
+		<key name="horizontal-flip" type="b">
+			<default>false</default>
+			<summary>Flip Visualizer Horizontally</summary>
 		</key>
 		<key type="b" name="spect-over-ride-bool">
 			<default>false</default>
@@ -37,6 +30,27 @@
 			<default>64</default>
 			<summary>Override Spects Bands</summary>
 			<description>Override Spects Bands</description>
+		</key>
+		<key name="fps" type="i">
+			<default>30</default>
+			<summary>Frames Per Second</summary>
+			<description>The number of frames per second for the visualizer. Possible values are 15, 30, 60, 90, and 120.</description>
+		</key>
+		<key name="spects-line-width" type="i">
+			<default>5</default>
+			<summary>All Spect Bands width</summary>
+		</key>
+		<key name="total-spects-band" type="i">
+			<default>64</default>
+			<summary>Count Total Spects Bands</summary>
+		</key>
+		<key name="visualizer-height" type="i">
+			<default>150</default>
+			<summary>Vertical Size of DrawingArea</summary>
+		</key>
+		<key name="visualizer-width" type="i">
+			<default>720</default>
+			<summary>Horizontal Size of DrawingArea</summary>
 		</key>
 	</schema>
 </schemalist>
